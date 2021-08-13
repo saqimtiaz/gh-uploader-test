@@ -165,13 +165,13 @@ Error message and password prompt
 
 <li>$:/plugins/tiddlywiki/file-uploads</li>
 
-<li>$:/plugins/tiddlywiki/file-uploads-fission</li>
-
 <li>$:/plugins/tiddlywiki/file-uploads-github</li>
 
 <li>$:/SiteSubtitle</li>
 
 <li>$:/SiteTitle</li>
+
+<li>$:/state/plugin-info-1599059624-$:/plugins/tiddlywiki/file-uploads--613673087</li>
 
 <li>$:/state/tab-1749438307</li>
 
@@ -10170,30 +10170,6 @@ Error message and password prompt
     }
 }</pre>
 </div>
-<div author="Saq Imtiaz" bag="default" core-version="&gt;=5.1.23" dependents="" description="Fission uploader for uploading binary files to external storage" list="readme settings" name="File Uploads: Fission" parent-plugin="$:/plugins/tiddlywiki/file-uploads" plugin-priority="0" plugin-type="plugin" revision="0" title="$:/plugins/tiddlywiki/file-uploads-fission" type="application/json" version="0.1.0">
-<pre>{
-    &quot;tiddlers&quot;: {
-        &quot;$:/config/file-uploads/fission/uploadpath&quot;: {
-            &quot;title&quot;: &quot;$:/config/file-uploads/fission/uploadpath&quot;,
-            &quot;text&quot;: &quot;files\n&quot;
-        },
-        &quot;$:/plugins/tiddlywiki/file-uploads-fission/uploader.js&quot;: {
-            &quot;title&quot;: &quot;$:/plugins/tiddlywiki/file-uploads-fission/uploader.js&quot;,
-            &quot;text&quot;: &quot;/*\\\ntitle: $:/plugins/tiddlywiki/file-uploads-fission/uploader.js\ntype: application/javascript\nmodule-type: uploader\n\nHandles uploading to Fission Webnative filing system\n\n\\*/\n(function(){\n\n\n/*jslint node: true, browser: true */\n/*global $tw: false */\n\&quot;use strict\&quot;;\n\nexports.name = \&quot;fission\&quot;;\n\nvar fissionUserName;\n\nexports.create = function(params) {\n\t//webnativeDetails does not provide access to webnative.path.file() and authenticatedUsername()\n\tvar webnativeDetails = window.webnativeDetails || window.parent &amp;&amp; window.parent.webnativeDetails,\n\t\twebnative = window.webnative || window.parent &amp;&amp; window.parent.webnative;\n\tif(webnative &amp;&amp; webnativeDetails &amp;&amp; webnativeDetails.fs) {\n\t\tif(!fissionUserName) {\n\t\t\twebnative.authenticatedUsername().then(result =&gt; {fissionUserName = result});\n\t\t}\n\t\treturn new FissionUploader(params,webnative,webnativeDetails.fs);\n\t}\n\t//alert(\&quot;Webnative is not available, are you using TiddlyWiki on Fission?\&quot;);\n\tparams.logger.alert(\&quot;Fission uploader could not be initialized. \\n Webnative is not available, are you using ~TiddlyWiki on Fission?\&quot;);\n\treturn null;\n};\n\nfunction FissionUploader(params,webnative,fs) {\n\tvar self = this;\n\tthis.webnative = webnative;\n\tthis.params = params || {};\n\tthis.logger = new $tw.utils.Logger(\&quot;fission-uploader\&quot;);\n\tthis.fs = fs;\n\t// TODO Path should be taken from a config tiddler specific to the uploader\n\tthis.outputBasePath = [\&quot;public\&quot;];\n\tvar uploadFolder = $tw.wiki.getTiddlerText(\&quot;$:/config/file-uploads/fission/uploadpath\&quot;,\&quot;files\&quot;).trim().replace(/^\\/|\\/$/gm,\&quot;\&quot;);\n\tvar uploadPath = uploadFolder.split(\&quot;/\&quot;);\n\t$tw.utils.each(uploadPath,function(folder){\n\t\tself.outputBasePath.push(folder);\n\t})\n\tthis.logger.log(\&quot;FissionUploader\&quot;,params);\n};\n\nFissionUploader.prototype.initialize = function(callback) {\n\tthis.logger.log(\&quot;uploader initialize\&quot;);\n\tcallback();\n};\n\n// Converts base64 data into a form accepted by the backend for saving\nFissionUploader.prototype._prepareUploadData = function (uploadItem) {\n\tif(uploadItem.isBase64) {\n\t\tconst byteArray = Uint8Array.from(\n\t\t\tatob(uploadItem.text)\n\t\t\t\t.split('')\n\t\t\t\t.map(char =&gt; char.charCodeAt(0))\n\t\t);\n\t\treturn byteArray;    \n\t} else {\n\t\treturn uploadItem.text;\n\t}\n};\n\n// Returns the canonical_uri for a file that has been uploaded\nFissionUploader.prototype._getCanonicalURI = function(uploadItem) {\n\tvar filePath = this.outputBasePath.slice(1);\n\tfilePath.push(uploadItem.filename);\n\treturn `https://${fissionUserName}.files.fission.name/p/${filePath.join(\&quot;/\&quot;)}`;\n}\n\n// Returns the path object representing the path to which the file will be saved\nFissionUploader.prototype._getUploadPath = function(uploadItem) {\n\tvar pathParams = this.outputBasePath.slice();\n\tpathParams.splice(pathParams.length,0,uploadItem.filename);\n\treturn this.webnative.path.file.apply(null,pathParams);\n};\n\n/*\nArguments:\nuploadItem: object representing tiddler to be uploaded\ncallback accepts two arguments:\n\terr: error object if there was an error\n\tuploadItemInfo: object corresponding to the tiddler being uploaded with the following properties set:\n\t- title\n\t- canonical_uri (if available)\n\t- uploadComplete (boolean)\n*/\nFissionUploader.prototype.uploadFile = function(uploadItem,callback) {  \n\tvar self = this,\n\t\tpath = this._getUploadPath(uploadItem);\n\t//this.items.push(uploadItem);\n\tself.fs.add(path,self._prepareUploadData(uploadItem)).then(function() {\n\t\tvar uploadInfo = { title: uploadItem.title },\n\t\t\tcanonical_uri = self._getCanonicalURI(uploadItem);\n\t\tself.logger.log(`Saved to ${path.file.join(\&quot;/\&quot;)} with canonical_uri ${canonical_uri}`);\n\t\t // Set the canonical_uri\n\t\tuploadInfo.canonical_uri = canonical_uri;\n\t\t// Set updateProgress to true if the progress bar should be updated\n\t\t// For some uploaders where the data is just being added to the payload with no uploading taking place we may not want to update the progress bar\n\t\tuploadInfo.updateProgress = true;\n\t\t// Set uploadComplete to true if the uploaded file has been persisted and is available at the canonical_uri\n\t\t// This flag triggers the creation of a canonical_uri tiddler corresponding to the uploaded file\n\t\t// Here we set uploadComplete to false since with Fission the file uploaded will not be persisted until we call publish()\n\t\tuploadInfo.uploadComplete = false;\n\t\tcallback(null,uploadInfo);\n\t}).catch(function(err) {\n\t\tself.logger.alert(`Error saving file ${path.file.join(\&quot;/\&quot;)} to fission: ${err}`);\n\t\tcallback(err,uploadInfo);\n\t});\n};\n\n/*\nArguments:\ncallback accepts two arguments:\n\tstatus: true if there was no error, otherwise false\n\tuploadInfoArray (optional): array of uploadInfo objects corresponding to the tiddlers that have been uploaded\n\t\tthis is needed and should set the canonical_uri for each uploadItem if:\n\t\t- (a) uploadInfo.uploadComplete was not set to true in uploadFile AND \n\t\t- (b) uploadInfo.canonical_uri was not set in uploadFile\n*/\nFissionUploader.prototype.deinitialize = function(callback) {\n\tvar self = this;\n\tthis.fs.publish().then(function() {\n\t\tself.logger.log(\&quot;uploader deinitialize\&quot;);\n\t\tcallback();\n\t}).catch(function(err) {\n\t\tself.logger.alert(`Error uploading to fission: ${err} in uploader deinitialize`);\n\t\tcallback(err);\n\t});\n};\n\n})();\n&quot;,
-            &quot;type&quot;: &quot;application/javascript&quot;,
-            &quot;module-type&quot;: &quot;uploader&quot;
-        },
-        &quot;$:/plugins/tiddlywiki/file-uploads-fission/readme&quot;: {
-            &quot;title&quot;: &quot;$:/plugins/tiddlywiki/file-uploads-fission/readme&quot;,
-            &quot;text&quot;: &quot;Fission uploader module for the File Uploads plugin. Saves uploads to Fission's Webnative file system which is based on IPFS.\n\nMeant for use on [[TiddlyWiki on Fission|https://tiddlywiki.fission.app/]]&quot;
-        },
-        &quot;$:/plugins/tiddlywiki/file-uploads-fission/settings&quot;: {
-            &quot;title&quot;: &quot;$:/plugins/tiddlywiki/file-uploads-fission/settings&quot;,
-            &quot;text&quot;: &quot;[[Upload folder path relative to root of public folder|$:/config/file-uploads/fission/uploadpath]]: \n&lt;$edit-text tiddler=\&quot;$:/config/file-uploads/fission/uploadpath\&quot; field=\&quot;text\&quot; tag=\&quot;input\&quot; /&gt;\n&quot;
-        }
-    }
-}</pre>
-</div>
 <div author="Saq Imtiaz" bag="default" core-version="&gt;=5.1.23" dependents="" description="Github uploader for uploading binary files to external storage" list="readme settings license" name="File Uploads: Github" parent-plugin="$:/plugins/tiddlywiki/file-uploads" plugin-priority="0" plugin-type="plugin" revision="0" title="$:/plugins/tiddlywiki/file-uploads-github" type="application/json" version="0.1.0">
 <pre>{
     &quot;tiddlers&quot;: {
@@ -10234,8 +10210,11 @@ Error message and password prompt
 <div bag="default" created="20210812211512218" modified="20210813102013402" revision="0" title="$:/SiteTitle" type="text/vnd.tiddlywiki">
 <pre>Saq's wiki</pre>
 </div>
-<div created="20210813102213688" modified="20210813102227530" title="$:/state/tab-1749438307">
-<pre>$:/core/ui/ControlPanel/Saving</pre>
+<div created="20210813102414053" modified="20210813102414053" title="$:/state/plugin-info-1599059624-$:/plugins/tiddlywiki/file-uploads--613673087">
+<pre>settings</pre>
+</div>
+<div created="20210813102213688" modified="20210813102406947" title="$:/state/tab-1749438307">
+<pre>$:/core/ui/ControlPanel/Plugins</pre>
 </div>
 <div created="20210813102228380" modified="20210813102228380" title="$:/state/tab-2065006209">
 <pre>$:/core/ui/ControlPanel/Saving/GitHub</pre>
@@ -10243,7 +10222,7 @@ Error message and password prompt
 <div title="$:/status/RequireReloadDueToPluginChange">
 <pre>yes</pre>
 </div>
-<div created="20210813102212583" list="" modified="20210813102226216" title="$:/StoryList">
+<div created="20210813102405827" list="" modified="20210813102426761" title="$:/StoryList">
 <pre></pre>
 </div>
 <div author="JeremyRuston" bag="default" core-version="&gt;=5.0.0" dependents="$:/themes/tiddlywiki/vanilla" description="Emphasises individual tiddlers" name="Snow White" plugin-priority="0" plugin-type="theme" revision="0" title="$:/themes/tiddlywiki/snowwhite" type="application/json" version="5.1.23">
